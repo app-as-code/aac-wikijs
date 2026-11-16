@@ -1,0 +1,122 @@
+service:
+  name: aac-wikijs
+  image_repo: requarks/wiki
+  image_tag: 2.5
+  description: Self-hosted Wiki mit Git-Anbindung
+  icon: wikijs.svg
+  category: Documentation
+  stage: prod
+  hostname: wiki
+ports:
+- name: web
+  port: 3000
+  external_port: 3185
+  protocol: TCP
+config:
+  domain_name: example.com
+  generate_hostname: false
+  integrations:
+    homepage:
+      enabled: true
+    autodns:
+      enabled: true
+    traefik:
+      enabled: true
+      internet_facing: true
+      cert_resolver: ionos
+      entrypoint: websecure
+  schema_version: 2
+stage_overrides:
+  prod:
+    config:
+      generate_hostname: false
+      public_domain_name: example.com
+      integrations:
+        traefik:
+          enabled: true
+          internet_facing: true
+          cert_resolver: ionos
+          entrypoint: websecure
+    service:
+      hostname: wiki
+secrets:
+  DB_PASS: CHANGE_ME
+  POSTGRES_USER: wikijs
+  POSTGRES_PASSWORD: CHANGE_ME
+  POSTGRES_DB: wikijs
+volumes:
+  data:
+    description: Wiki.js application data and assets
+  repo:
+    description: Wiki.js Git repository for content
+  db:
+    description: Data for database
+deployment_strategy:
+  main:
+    enabled: true
+    target_stage: prod
+  dev:
+    enabled: true
+    target_stage: dev
+  test:
+    enabled: false
+    target_stage: test
+  ansible-dev:
+    enabled: true
+    target_stage: dev
+  iac-dev:
+    enabled: true
+    target_stage: dev
+  template-dev:
+    enabled: true
+    target_stage: dev
+deployments:
+  docker_compose:
+    restart_policy: always
+    host_base_path: /export/docker
+    security_opt:
+    - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+    volumes:
+    - data:/data
+    - repo:/var/wiki/repo
+    environment:
+      PUID: '{{ vars.PUID }}'
+      PGID: '{{ vars.PGID }}'
+      TZ: '{{ vars.TZ }}'
+      DB_TYPE: '{{ vars.DB_TYPE }}'
+      DB_HOST: '{{ vars.DB_HOST }}'
+      DB_PORT: '{{ vars.DB_PORT }}'
+      DB_NAME: '{{ vars.DB_NAME }}'
+      DB_USER: '{{ vars.DB_USER }}'
+      DB_PASS: '{{ secrets.DB_PASS }}'
+      POSTGRES_USER: '{{ secrets.POSTGRES_USER }}'
+      POSTGRES_PASSWORD: '{{ secrets.POSTGRES_PASSWORD }}'
+      POSTGRES_DB: '{{ secrets.POSTGRES_DB }}'
+dependencies:
+  database:
+    import: catalog/postgres.yml
+    overrides:
+      name: aac-wikijs-db
+      image_tag: '18'
+      volumes:
+        db:
+          target: /var/lib/postgresql
+          description: Persistent storage for db
+      environment:
+        PUID: '{{ vars.PUID }}'
+        PGID: '{{ vars.PGID }}'
+        TZ: '{{ vars.TZ }}'
+vars:
+  PUID: '1000'
+  PGID: '1000'
+  TZ: Europe/Berlin
+  DB_TYPE: postgres
+  DB_HOST: wiki.example.com
+  DB_PORT: 5432
+  DB_NAME: wikijs
+  DB_USER: wikijs

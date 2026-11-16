@@ -1,0 +1,112 @@
+services:
+  # --- Main Application Service ---
+  aac-wikijs:
+    image: "requarks/wiki:2.5"
+    container_name: "aac-wikijs"
+    hostname: "wiki"
+    restart: "always"
+
+
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      TZ: "Europe/Berlin"
+      DB_TYPE: "postgres"
+      DB_HOST: "wiki.example.com"
+      DB_PORT: "5432"
+      DB_NAME: "wikijs"
+      DB_USER: "wikijs"
+      DB_PASS: "${DB_PASS:?set DB_PASS in .env (see .env.example)}"
+      POSTGRES_USER: "wikijs"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env (see .env.example)}"
+      POSTGRES_DB: "wikijs"
+
+    ports:
+      - "3185:3000/tcp"
+
+    volumes:
+      - "/export/docker/aac-wikijs/data:/data"
+      - "/export/docker/aac-wikijs/repo:/var/wiki/repo"
+
+    networks:
+      - exposed
+      - interconnect
+      - secured
+      - stack_internal
+
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.aac-wikijs.rule: "Host(`wiki.example.com`) || Host(`wiki.example.com`)"
+      traefik.http.routers.aac-wikijs.entrypoints: "websecure"
+      traefik.http.routers.aac-wikijs.tls: "true"
+      traefik.http.routers.aac-wikijs.tls.certresolver: "ionos"
+      traefik.docker.network: "services-secured"
+      traefik.http.services.aac-wikijs.loadbalancer.server.port: "3000"
+      traefik.http.services.aac-wikijs.loadbalancer.server.scheme: "http"
+      auto-dns.createWildcard.aac-wikijs: "false"
+      auto-dns.customDNS.aac-wikijs: "true"
+      auto-dns.customDOMAIN.aac-wikijs: "example.com"
+      auto-dns.customHost.aac-wikijs: "wiki"
+      homepage.group: "Documentation"
+      homepage.name: "Wikijs"
+      homepage.href: "https://wiki.example.com"
+      homepage.icon: "wikijs.svg"
+      homepage.description: "Self-hosted Wiki mit Git-Anbindung"
+
+
+    security_opt:
+    - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+    depends_on:
+      aac-wikijs-db:
+        condition: service_healthy
+
+
+  # --- Service Dependencies (Sidecars) ---
+  aac-wikijs-db:
+    image: "postgres:18"
+    container_name: "aac-wikijs-db"
+    restart: "always"
+    
+
+    env_file:
+      - .env
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      TZ: "Europe/Berlin"
+
+
+    volumes:
+      - "/export/docker/aac-wikijs/db:/var/lib/postgresql"
+
+    networks:
+      - stack_internal
+
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER:-postgres}\" -d \"$${POSTGRES_DB:-postgres}\""]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+
+
+networks:
+  secured:
+    name: "services-secured"
+    external: true
+  exposed:
+    name: "services-exposed"
+    external: true
+  interconnect:
+    name: "docker-default"
+    external: true
+  stack_internal:
+    name: "aac-wikijs_stack_internal"
+    driver: "bridge"
+
